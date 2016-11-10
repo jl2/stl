@@ -9,15 +9,20 @@
   (y 0.0 :type single-float)
   (z 0.0 :type single-float))
 
-(defparameter *triangle-byte-size* (+ 2 (* 4 3 4)))
+(defparameter *float-byte-size* 4)
+(defparameter *point-byte-size* (* 3 *float-byte-size*))
+(defparameter *triangle-byte-size* (+ 2 (* 4 *point-byte-size*)))
 
 (defstruct triangle
-  (pts (make-array 4 :element-type 'point :adjustable nil :fill-pointer nil))
-  (attribute 0 :type '(unsigned-byte 16)))
+  (normal (make-point) :type point)
+  (pt1 (make-point) :type point)
+  (pt2 (make-point) :type point)
+  (pt3 (make-point) :type point)
+  (attribute 0 :type fixnum))
 
 ;; (defun get-u4 (arr)
 ;;   (declare
-;;    (optimize (speed 3) (space 0) (safety 0) (debug 0))
+;;    (optimize (speed 3) (space 0) (safety 3) (debug 3))
 ;;    (type (simple-array (unsigned-byte 8) (4)) arr))
 ;;   (let* ((u4 0))
 ;;     (declare (type (unsigned-byte 32) u4))
@@ -27,45 +32,92 @@
 ;;     (setf (ldb (byte 8 24) u4) (aref arr 3))
 ;;     u4))
 
-(defun get-u2 (arr offset)
+(defun get-u2 (arr)
   (declare
-   (optimize (speed 3) (space 0) (safety 0) (debug 0))
-   (type fixnum offset)
-   (type (simple-array (unsigned-byte 8) *) arr))
-  (the (unsigned-byte 32) (+ (* (aref arr (+ offset 1)) 256) (aref arr offset))))
+   (optimize (speed 3) (space 0) (safety 3) (debug 3))
+   (type (vector (unsigned-byte 8) 2) arr))
+  (the (unsigned-byte 32) (+ (* (aref arr 1) 256) (aref arr 0))))
 
-(defun get-u4 (arr offset)
+(defun get-u4 (arr)
   (declare
-   (optimize (speed 3) (space 0) (safety 0) (debug 0))
-   (type fixnum offset)
-   (type (simple-array (unsigned-byte 8) *) arr))
-  (the (unsigned-byte 32) (+ (* (+ (* (+ (* (aref arr (+ offset 3)) 256) (aref arr (+ offset 2))) 256) (aref arr (+ offset 1))) 256) (aref arr offset))))
+   (optimize (speed 3) (space 0) (safety 3) (debug 3))
+   (type (vector (unsigned-byte 8) 4) arr))
+  (the (unsigned-byte 32) (+ (* (+ (* (+ (* (aref arr 3) 256) (aref arr 2)) 256) (aref arr 1)) 256) (aref arr 0))))
 
-(make-array (list *triangle-byte-size*) :element-type '(unsigned-byte 8) :displaced-to buffer :displaced-index-offset offset)
+(defun get-s4 (arr)
+  (declare
+   (optimize (speed 3) (space 0) (safety 3) (debug 3))
+   (type (vector (unsigned-byte 8) 4) arr))
+  (the (signed-byte 32) (+ (* (+ (* (+ (* (aref arr 3) 256) (aref arr 2)) 256) (aref arr 1)) 256) (aref arr 0))))
 
-(defun get-point (arr )
+(defun get-float (arr)
+  (declare
+   (optimize (speed 3) (space 0) (safety 3) (debug 3))
+   (type (vector (unsigned-byte 8) 4) arr))
+  (let ((x (get-u4 arr)))
+    (if (>= x #x80000000)
+        (sb-kernel:make-single-float (- x #x100000000))
+        (sb-kernel:make-single-float x))))
+
+(defun get-point (arr)
+  (declare
+   (optimize (speed 3) (space 0) (safety 3) (debug 3))
+   (type (vector (unsigned-byte 8) #.(* 3 4)) arr))
+  (make-point :x (get-float (make-array 4
+                                        :element-type '(unsigned-byte 8) 
+                                        :displaced-to arr 
+                                        :displaced-index-offset 0))
+              :y (get-float (make-array 4
+                                        :element-type '(unsigned-byte 8) 
+                                        :displaced-to arr 
+                                        :displaced-index-offset *float-byte-size*))
+              :z (get-float (make-array 4
+                                        :element-type '(unsigned-byte 8) 
+                                        :displaced-to arr 
+                                        :displaced-index-offset (* 2 *float-byte-size*)))))
 
 (defun get-triangle (arr)
-  (let ((rval (make-triangle )))
-    (
-    (let ((buffer (make-array *triangle-byte-size* :element-type '(unsigned-byte 8))))
-    (read-sequence inf buffer)))
+  (declare
+   (optimize (speed 3) (space 0) (safety 3) (debug 3))
+   (type (vector (unsigned-byte 8) #.(+ 2 (* 4 3 4))) arr))
+  (make-triangle :normal (get-point (make-array #.(* 3 4)
+                                                :element-type '(unsigned-byte 8)
+                                                :displaced-to arr
+                                                :displaced-index-offset 0))
+                 :pt1 (get-point (make-array #.(* 3 4)
+                                             :element-type '(unsigned-byte 8)
+                                             :displaced-to arr
+                                             :displaced-index-offset *point-byte-size*))
+                 :pt2 (get-point (make-array #.(* 3 4)
+                                             :element-type '(unsigned-byte 8)
+                                             :displaced-to arr
+                                             :displaced-index-offset (* 2 *point-byte-size*)))
+                 :pt3 (get-point (make-array #.(* 3 4)
+                                             :element-type '(unsigned-byte 8)
+                                             :displaced-to arr
+                                             :displaced-index-offset (* 3 *point-byte-size*)))
+                 :attribute (get-u2 (make-array 2 :element-type '(unsigned-byte 8)))))
 
 (defun read-stl (fname)
   (format t "Reading file ~a~%" fname)
   (with-open-file (inf fname :element-type '(unsigned-byte 8))
     (let ((header (make-array 80 :element-type '(unsigned-byte 8)))
+          (triangle-count-buffer (make-array 4 :element-type '(unsigned-byte 8)))
           (triangle-count '(unsigned-byte 32)))
-      (read-sequence header inf :start 0 :end 80)
-      (setf triangle-count (read-u4 inf))
+      (read-sequence header inf)
+      (read-sequence triangle-count-buffer inf)
+      (setf triangle-count (get-u4 triangle-count-buffer))
       (let ((buffer (make-array (* triangle-count *triangle-byte-size*) :element-type '(unsigned-byte 8)))
             (triangles (make-array triangle-count :element-type 'triangle )))
         (read-sequence buffer inf)
-        (loop for idx upto triangle-count
+        (loop for idx below triangle-count
            for offset = 0 then (* idx *triangle-byte-size*)
            do
              (setf (aref triangles idx)
-                   (read-triangle (make-array (list *triangle-byte-size*) :element-type '(unsigned-byte 8) :displaced-to buffer :displaced-index-offset offset) )))
+                   (get-triangle (make-array #.(+ 2 (* 4 3 4))
+                                             :element-type '(unsigned-byte 8)
+                                             :displaced-to buffer
+                                             :displaced-index-offset offset))))
         (format t "File has ~a triangles!~%" triangle-count)
         
         triangles))))
