@@ -24,4 +24,5 @@
    #:triangle-pt3
 
    #:triangle-area
+   #:to-opengl
    ))
