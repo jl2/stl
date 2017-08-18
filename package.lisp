@@ -30,5 +30,6 @@
    #:normal
 
    #:triangle-area
+   #:to-opengl
    #:bounding-box
    ))

@@ -10,6 +10,13 @@
   (y 0.0 :type single-float)
   (z 0.0 :type single-float))
 
+(defun psub (p1 p2)
+  (with-slots ((x1 x) (y1 y) (z1 z)) p1
+    (with-slots ((x2 x) (y2 y) (z2 z)) p2
+      (make-point :x (- x1 x2)
+                  :y (- y1 y2)
+                  :z (- z1 z2)))))
+
 (defparameter *float-byte-size* 4                                 "Size of an STL float in bytes.")
 (defparameter *point-byte-size* (* 3 *float-byte-size*)           "Size of an STL point in bytes.")
 (defparameter *triangle-byte-size* (+ 2 (* 4 *point-byte-size*))  "Size of an STL triangle in bytes.")
@@ -44,6 +51,18 @@
            (c (distance pt2 pt3))
            (s (* 0.5f0 (+ a b c))))
       (the single-float (sqrt (* s (- s a) (- s b) (- s c)))))))
+
+(defun cross (v1 v2)
+  (with-slots ((x1 x) (y1 y) (z1 z)) v1
+    (with-slots ((x2 x) (y2 y) (z2 z)) v2
+      (make-point :x (- (* y1 z2) (* z1 y2))
+                  :y (- (* z1 x2) (* x1 z2))
+                  :z (- (* x1 y2) (* y1 x2))))))
+
+(defun triangle-normal (tri)
+  "Compute the normal of a triangle."
+  (with-slots (pt1 pt2 pt3 normal) tri
+    (setf tri (cross (psub pt1 pt2) (psub pt1 pt3)))))
 
 (defun stl-area (triangles)
   "Compute the area of a vector of triangles."
@@ -150,6 +169,52 @@
                                              :displaced-index-offset offset))))
         triangles))))
 
+(defun zero-point (pt)
+  (with-slots (x y z) pt
+    (and (= 0.0 x) (= 0.0 y) (= 0.0 z))))
+
+(defun to-opengl (triangles &key(red 0.0) (green 1.0) (blue 0.0) (alpha 1.0))
+  (declare
+   (optimize (speed 3) (space 0) (safety 3) (debug 3))
+   (type (vector triangle) triangles))
+  (let* ((tri-count (length triangles))
+         (pt-size 10)
+         (rval (make-array
+                (* pt-size 3 tri-count)
+                :element-type 'single-float
+                :initial-element 66.0f0))
+         (idx 0)
+         (indices (make-array
+                   (* 3 tri-count)
+                   :element-type 'fixnum
+                   :initial-contents (loop for i below (* 3 tri-count) collecting i))))
+    (format t "Tri-count: ~a array-size ~a~%" tri-count (* pt-size 3 tri-count))
+    (flet ((show-point (idx pt normal red green blue alpha)
+             (with-slots (x y z) pt
+               (setf (aref rval (+ 0 idx)) (coerce x 'single-float))
+               (setf (aref rval (+ 1 idx)) (coerce y 'single-float))
+               (setf (aref rval (+ 2 idx)) (coerce z 'single-float)))
+             (with-slots (x y z) normal
+               (setf (aref rval (+ 3 idx)) (coerce x 'single-float))
+               (setf (aref rval (+ 4 idx)) (coerce y 'single-float))
+               (setf (aref rval (+ 5 idx)) (coerce z 'single-float)))
+             (setf (aref rval (+ 6 idx)) (coerce red 'single-float))
+             (setf (aref rval (+ 7 idx)) (coerce green 'single-float))
+             (setf (aref rval (+ 8 idx)) (coerce blue 'single-float))
+             (setf (aref rval (+ 9 idx)) (coerce alpha 'single-float))))
+      (loop for tri across triangles
+         do
+           (with-slots (pt1 pt2 pt3 normal) tri
+             (when (zero-point normal)
+               (setf normal (triangle-normal tri)))
+             (show-point idx pt1 normal red green blue alpha)
+             (incf idx 10)
+             (show-point idx pt2 normal red green blue alpha)
+             (incf idx 10)
+             (show-point idx pt3 normal red green blue alpha)
+             (incf idx 10))))
+    (values rval indices)))
+
 (defun bounding-box (triangles)
   (let ((min-pt (make-point :x most-positive-single-float :y most-positive-single-float :z most-positive-single-float))
         (max-pt (make-point :x most-negative-single-float :y most-negative-single-float :z most-negative-single-float)))
@@ -163,3 +228,4 @@
            (setf (point-y max-pt) (max (point-y pt1) (point-y pt2) (point-y pt3) (point-y max-pt)))
            (setf (point-z max-pt) (max (point-z pt1) (point-z pt2) (point-z pt3) (point-z max-pt)))))
     (list min-pt max-pt)))
+
