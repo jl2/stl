@@ -150,3 +150,16 @@
                                              :displaced-index-offset offset))))
         triangles))))
 
+(defun bounding-box (triangles)
+  (let ((min-pt (make-point :x most-positive-single-float :y most-positive-single-float :z most-positive-single-float))
+        (max-pt (make-point :x most-negative-single-float :y most-negative-single-float :z most-negative-single-float)))
+    (loop for tri across triangles
+       do
+         (with-slots (pt1 pt2 pt3) tri
+           (setf (point-x min-pt) (min (point-x pt1) (point-x pt2) (point-x pt3) (point-x min-pt)))
+           (setf (point-y min-pt) (min (point-y pt1) (point-y pt2) (point-y pt3) (point-y min-pt)))
+           (setf (point-z min-pt) (min (point-z pt1) (point-z pt2) (point-z pt3) (point-z min-pt)))
+           (setf (point-x max-pt) (max (point-x pt1) (point-x pt2) (point-x pt3) (point-x max-pt)))
+           (setf (point-y max-pt) (max (point-y pt1) (point-y pt2) (point-y pt3) (point-y max-pt)))
+           (setf (point-z max-pt) (max (point-z pt1) (point-z pt2) (point-z pt3) (point-z max-pt)))))
+    (list min-pt max-pt)))
