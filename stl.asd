@@ -10,7 +10,7 @@
   #+(and :little-endian :ieee-floating-point :sbcl)
   (#:geometry)
   #-(and :little-endian :ieee-floating-point :sbcl)
-  (#:ieee-floats #:geomtry)
+  (#:ieee-floats #:geometry)
   :serial t
   :components ((:file "package")
                (:file "stl")))
