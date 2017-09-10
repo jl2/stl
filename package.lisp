@@ -3,7 +3,7 @@
 ;;;; Copyright (c) 2016 Jeremiah LaRocco <jeremiah.larocco@gmail.com>
 
 (defpackage #:stl
-  (:use #:cl #:geometry)
+  (:use #:cl)
   (:export
 
    #:read-stl

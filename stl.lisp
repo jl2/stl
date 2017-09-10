@@ -6,9 +6,9 @@
 
 (defstruct point
   "Three single-floats that identify a location in 3D space."
-  (x 0.0 :type single-float)
-  (y 0.0 :type single-float)
-  (z 0.0 :type single-float))
+  (x 0.0f0 :type single-float)
+  (y 0.0f0 :type single-float)
+  (z 0.0f0 :type single-float))
 
 (defun psub (p1 p2)
   (with-slots ((x1 x) (y1 y) (z1 z)) p1
@@ -50,7 +50,8 @@
            (b (distance pt1 pt3))
            (c (distance pt2 pt3))
            (s (* 0.5f0 (+ a b c))))
-      (the single-float (sqrt (* s (- s a) (- s b) (- s c)))))))
+      (declare (type single-float a b c s))
+      (sqrt (abs (* s (- s a) (- s b) (- s c)))))))
 
 (defun cross (v1 v2)
   (with-slots ((x1 x) (y1 y) (z1 z)) v1
@@ -59,7 +60,7 @@
                   :y (- (* z1 x2) (* x1 z2))
                   :z (- (* x1 y2) (* y1 x2))))))
 
-(defun triangle-normal (tri)
+(defun compute-triangle-normal (tri)
   "Compute the normal of a triangle."
   (with-slots (pt1 pt2 pt3 normal) tri
     (setf tri (cross (psub pt1 pt2) (psub pt1 pt3)))))
@@ -68,9 +69,9 @@
   "Compute the area of a vector of triangles."
   (declare
    (optimize (speed 3) (space 0) (safety 3) (debug 3))
-   (type (vector triangle) triangles))
+   (type (simple-array triangle) triangles))
   (loop for tri across triangles
-     summing (triangle-area tri)))
+     summing (triangle-area tri) single-float))
 
 (defun get-u2 (arr)
   "Interpret two bytes in arr as an '(unsigned-byte 32)"
@@ -206,7 +207,7 @@
          do
            (with-slots (pt1 pt2 pt3 normal) tri
              (when (zero-point normal)
-               (setf normal (triangle-normal tri)))
+               (setf normal (compute-triangle-normal tri)))
              (show-point idx pt1 normal red green blue alpha)
              (incf idx 10)
              (show-point idx pt2 normal red green blue alpha)
