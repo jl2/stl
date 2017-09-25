@@ -8,9 +8,9 @@
   :license "ISC"
   :depends-on 
   #+(and :little-endian :ieee-floating-point :sbcl)
-  ()
+  (:3d-vectors)
   #-(and :little-endian :ieee-floating-point :sbcl)
-  (#:ieee-floats)
+  (#:ieee-floats :3d-vectors)
   :serial t
   :components ((:file "package")
                (:file "stl")))
